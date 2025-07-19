@@ -32,9 +32,6 @@ const int RC_ENG2_SWITCH = A0; // Channel 10, engine 2 ON/OFF
 
 const int FAILSAFE_PIN = 0; // Failsafe output pin (LED, relay, etc.)
 
-const float RAMP_MIN_DURATION = 150.0;   // ms, minimum ramp duration
-const float RAMP_MAX_DURATION = 1000.0;  // ms, max duration for full-range (255)
-
 const float RAMP_MAX_STEP_PER_MS = 255.0 / 1250.0; // Max throttle step per millisecond (255 på 1250 ms)
 unsigned long lastRampUpdateTime = 0;
 int currentThrottle = 0;
@@ -136,7 +133,7 @@ void loop() {
   int maxSpeed = readSignalValue(RC_MAX_SPEED, 50, 255, 255, 100);
   throttleTarget = constrain(throttleTarget, -maxSpeed, maxSpeed);
 
-  // --- Failsafe ---
+  // Failsafe handling, if the remote is not sending signals (actually the receiver)
   bool failsafeActive = (steer == 9999 || throttleTarget == 9999);
   digitalWrite(FAILSAFE_PIN, failsafeActive ? HIGH : LOW);
   if (failsafeActive) {
