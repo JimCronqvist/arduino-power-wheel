@@ -163,8 +163,11 @@ void loop() {
     return;
   }
 
-  // Soft start ramp: triggers for any mid-size throttle change (>5)
-  if ((throttleTarget != rampStartTarget) && abs(currentThrottle - throttleTarget) > 5) {
+  // Check if direction has changed explicitly
+  bool directionChanged = (currentThrottle > 0 && throttleTarget < 0) || (currentThrottle < 0 && throttleTarget > 0);
+
+  // Trigger ramp if there's a "significant" change (>5) or direction changed
+  if ((throttleTarget != rampStartTarget && abs(currentThrottle - throttleTarget) > 5) || directionChanged) {
     ramping = true;
     rampStartTime = millis();
     rampStartValue = currentThrottle; // Store ramp start value globally
