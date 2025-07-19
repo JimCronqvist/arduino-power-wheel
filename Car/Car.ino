@@ -35,11 +35,9 @@ const int FAILSAFE_PIN = 0; // Failsafe output pin (LED, relay, etc.)
 const float RAMP_MIN_DURATION = 150.0;   // ms, minimum ramp duration
 const float RAMP_MAX_DURATION = 1000.0;  // ms, max duration for full-range (255)
 
+const float RAMP_MAX_STEP_PER_MS = 255.0 / 1250.0; // Max throttle step per millisecond (255 på 1250 ms)
+unsigned long lastRampUpdateTime = 0;
 int currentThrottle = 0;
-int rampStartValue = 0;              // Global for ramp interpolation
-int rampStartTarget = 0;             // Global for ramp interpolation
-unsigned long rampStartTime = 0;
-bool ramping = false;
 
 // General signal reader for mapped values
 int readSignalValue(int pin, int minLimit, int maxLimit, int overrideLimit, int defaultValue) {
@@ -163,28 +161,24 @@ void loop() {
     return;
   }
 
-  // Check if direction has changed explicitly
-  bool directionChanged = (currentThrottle > 0 && throttleTarget < 0) || (currentThrottle < 0 && throttleTarget > 0);
+  // Calculate time elapsed since last loop iteration (in milliseconds)
+  unsigned long now = millis();
+  float elapsed = now - lastRampUpdateTime;
+  lastRampUpdateTime = now;
 
-  // Trigger ramp if there's a "significant" change (>5) or direction changed
-  if ((throttleTarget != rampStartTarget && abs(currentThrottle - throttleTarget) > 5) || directionChanged) {
-    ramping = true;
-    rampStartTime = millis();
-    rampStartValue = currentThrottle; // Store ramp start value globally
-    rampStartTarget = throttleTarget; 
-  }
+  // Calculate the maximum allowed throttle change for this iteration
+  float maxStep = elapsed * RAMP_MAX_STEP_PER_MS;
 
-  if (ramping) {
-    float rampDuration = max(RAMP_MIN_DURATION, RAMP_MAX_DURATION * abs(rampStartTarget - rampStartValue) / 255.0);
-    float rampProgress = (millis() - rampStartTime) / rampDuration;
-    if (rampProgress >= 1.0) {
-        ramping = false;
-        currentThrottle = rampStartTarget;
-    } else {
-        currentThrottle = (int)(rampStartValue + (rampStartTarget - rampStartValue) * rampProgress);
-    }
+  // Compute difference between current throttle and target throttle
+  int throttleDiff = throttleTarget - currentThrottle;
+
+  // Limit the throttle change to the max step
+  if (abs(throttleDiff) > maxStep) {
+      // Move current throttle towards target throttle, limited by max step
+      currentThrottle += (throttleDiff > 0 ? maxStep : -maxStep);
   } else {
-    currentThrottle = throttleTarget;
+      // Close enough to target, snap to target
+      currentThrottle = throttleTarget;
   }
 
   // Motor 1 & 2 drive control with enable switches
