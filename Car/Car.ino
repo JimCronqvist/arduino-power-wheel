@@ -121,8 +121,11 @@ void setup() {
 }
 
 void loop() {
-  // Read steering and throttle using function
-  int steer = readSignalValue(RC_STEER, -255, 255, 170, 9999); // 170 = ~12V
+  // Read steering and set a slightly bigger dead zone than default
+  int steer = readSignalValue(RC_STEER, -255, 255, 150, 9999); // 170 = ~12V
+  if (abs(steer) <= 20) steer = 0;
+
+  // Read throttle
   int throttleTarget  = readSignalValue(RC_THROTTLE, -255, 255, 255, 9999);
 
   // Engine switches (default true = on)
@@ -130,7 +133,7 @@ void loop() {
   bool engine2Enabled = readSwitchValue(RC_ENG2_SWITCH, true);
 
   // Max speed via potentiometer or switch (channel 4)
-  int maxSpeed = readSignalValue(RC_MAX_SPEED, 50, 255, 255, 100);
+  int maxSpeed = readSignalValue(RC_MAX_SPEED, 50, 255, 255, 150); // 170 = ~12V
   throttleTarget = constrain(throttleTarget, -maxSpeed, maxSpeed);
 
   // Failsafe handling, if the remote is not sending signals (actually the receiver)
