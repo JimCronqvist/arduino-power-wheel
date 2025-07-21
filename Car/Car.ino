@@ -27,8 +27,8 @@ const int RC_STEER = A1;       // Channel 1, steering left/right
 const int RC_THROTTLE = A2;    // Channel 2, throttle forward/reverse
 const int RC_EXTRA = A3;       // Channel 8, extra function, cut ramp up time in half.
 const int RC_MAX_SPEED = A4;   // Channel 3, max speed control
-const int RC_HARD_MAX_SPEED = A100; // Channel 5, hard limit speed control
-const int RC_STEERING_SPEED = A101; // Channel 6, fine tune steering speed
+const int RC_HARD_MAX_SPEED = NULL; // Channel 5, hard limit speed control
+const int RC_STEERING_SPEED = 1; // Channel 6, fine tune steering speed
 const int RC_ENG1_SWITCH = A5; // Channel 7, engine 1 ON/OFF
 const int RC_ENG2_SWITCH = A0; // Channel 10, engine 2 ON/OFF
 
@@ -124,7 +124,8 @@ void setup() {
 
 void loop() {
   // Read steering and set a slightly bigger dead zone than default
-  int steer = readSignalValue(RC_STEER, -255, 255, 120, 9999); // 170 = ~12V
+  int maxSteeringSpeed = readSignalValue(RC_STEERING_SPEED, 80, 140, 255, 120); // Default is 120
+  int steer = readSignalValue(RC_STEER, -255, 255, maxSteeringSpeed, 9999); // 170 = ~12V
   if (abs(steer) <= 20) steer = 0;
 
   // Read throttle
