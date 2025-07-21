@@ -23,10 +23,12 @@ const int M3_L_EN    = 12;
 const int M3_R_EN    = 13;
 
 // RC channels (FS-i6X receiver)
-const int RC_STEER = A1;     // Steering left/right
-const int RC_THROTTLE = A2;  // Throttle forward/reverse
-const int RC_EXTRA = A3;     // Extra function (switch?)
-const int RC_MAX_SPEED = A4; // Max speed control
+const int RC_STEER = A1;       // Channel 1, steering left/right
+const int RC_THROTTLE = A2;    // Channel 2, throttle forward/reverse
+const int RC_EXTRA = A3;       // Channel 8, extra function, cut ramp up time in half.
+const int RC_MAX_SPEED = A4;   // Channel 3, max speed control
+const int RC_HARD_MAX_SPEED = A100; // Channel 5, hard limit speed control
+const int RC_STEERING_SPEED = A101; // Channel 6, fine tune steering speed
 const int RC_ENG1_SWITCH = A5; // Channel 7, engine 1 ON/OFF
 const int RC_ENG2_SWITCH = A0; // Channel 10, engine 2 ON/OFF
 
@@ -51,6 +53,10 @@ int readSignalValue(int pin, int minLimit, int maxLimit, int overrideLimit, int 
   int outSpan = maxLimit - minLimit;
   int buffer = abs(outSpan) * 0.02;
 
+  // Apply override limit
+  if(overrideLimit < maxLimit) maxLimit = overrideLimit;
+  if(-overrideLimit < minLimit) minLimit = -overrideLimit;
+
   int mappedValue = constrain(
     map(rawValue, PWM_MIN, PWM_MAX, minLimit - buffer, maxLimit + buffer),
     minLimit, maxLimit
@@ -58,10 +64,6 @@ int readSignalValue(int pin, int minLimit, int maxLimit, int overrideLimit, int 
 
   // Deadzone (use percentage to calculate instead?)
   if (abs(mappedValue) <= 12) mappedValue = 0;
-
-  // Final override limit
-  if (mappedValue > overrideLimit) mappedValue = overrideLimit;
-  if (mappedValue < -overrideLimit) mappedValue = -overrideLimit;
 
   return mappedValue;
 }
@@ -122,11 +124,12 @@ void setup() {
 
 void loop() {
   // Read steering and set a slightly bigger dead zone than default
-  int steer = readSignalValue(RC_STEER, -255, 255, 150, 9999); // 170 = ~12V
+  int steer = readSignalValue(RC_STEER, -255, 255, 120, 9999); // 170 = ~12V
   if (abs(steer) <= 20) steer = 0;
 
   // Read throttle
   int throttleTarget  = readSignalValue(RC_THROTTLE, -255, 255, 255, 9999);
+  if (throttleTarget < -120) throttleTarget = -120;
 
   // Engine switches (default true = on)
   bool engine1Enabled = readSwitchValue(RC_ENG1_SWITCH, true);
@@ -134,7 +137,12 @@ void loop() {
 
   // Max speed via potentiometer or switch (channel 4)
   int maxSpeed = readSignalValue(RC_MAX_SPEED, 50, 255, 255, 150); // 170 = ~12V
+  int hardMaxSpeed = readSignalValue(RC_HARD_MAX_SPEED, 50, 255, 255, 255); // Additional limit of max speed via knob (hard limit).
+  maxSpeed = constrain(maxSpeed, -hardMaxSpeed, hardMaxSpeed);
   throttleTarget = constrain(throttleTarget, -maxSpeed, maxSpeed);
+
+  // Extra function - for now, cut ramp up time in half
+  bool extraFunction = readSwitchValue(RC_EXTRA, false);
 
   // Failsafe handling, if the remote is not sending signals (actually the receiver)
   bool failsafeActive = (steer == 9999 || throttleTarget == 9999);
@@ -167,6 +175,7 @@ void loop() {
   lastRampUpdateTime = now;
 
   // Calculate the maximum allowed throttle change for this iteration
+  float maxStepPerMs = extraFunction ? RAMP_MAX_STEP_PER_MS*2 : RAMP_MAX_STEP_PER_MS;
   float maxStep = elapsed * RAMP_MAX_STEP_PER_MS;
 
   // Compute difference between current throttle and target throttle
