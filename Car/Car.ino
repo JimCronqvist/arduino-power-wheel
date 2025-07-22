@@ -27,7 +27,7 @@ const int RC_STEER = A1;       // Channel 1, steering left/right
 const int RC_THROTTLE = A2;    // Channel 2, throttle forward/reverse
 const int RC_EXTRA = A3;       // Channel 8, extra function, cut ramp up time in half.
 const int RC_MAX_SPEED = A4;   // Channel 3, max speed control
-const int RC_HARD_MAX_SPEED = NULL; // Channel 5, hard limit speed control
+const int RC_HARD_MAX_SPEED = NULL; // Channel 5, hard limit speed control (digital 0 does not seem to work)
 const int RC_STEERING_SPEED = 1; // Channel 6, fine tune steering speed
 const int RC_ENG1_SWITCH = A5; // Channel 7, engine 1 ON/OFF
 const int RC_ENG2_SWITCH = A0; // Channel 10, engine 2 ON/OFF
@@ -55,7 +55,7 @@ int readSignalValue(int pin, int minLimit, int maxLimit, int overrideLimit, int 
 
   // Apply override limit
   if(overrideLimit < maxLimit) maxLimit = overrideLimit;
-  if(-overrideLimit < minLimit) minLimit = -overrideLimit;
+  if(-overrideLimit > minLimit) minLimit = -overrideLimit;
 
   int mappedValue = constrain(
     map(rawValue, PWM_MIN, PWM_MAX, minLimit - buffer, maxLimit + buffer),
@@ -105,11 +105,13 @@ void setup() {
   pinMode(M3_R_EN, OUTPUT);
 
   pinMode(RC_STEER, INPUT);
+  pinMode(RC_STEERING_SPEED, INPUT);
   pinMode(RC_THROTTLE, INPUT);
   pinMode(RC_ENG1_SWITCH, INPUT);
   pinMode(RC_ENG2_SWITCH, INPUT);
   pinMode(RC_EXTRA, INPUT);
   pinMode(RC_MAX_SPEED, INPUT);
+  pinMode(RC_HARD_MAX_SPEED, INPUT);
 
   pinMode(FAILSAFE_PIN, OUTPUT);
   digitalWrite(FAILSAFE_PIN, LOW);
@@ -124,23 +126,24 @@ void setup() {
 
 void loop() {
   // Read steering and set a slightly bigger dead zone than default
-  int maxSteeringSpeed = readSignalValue(RC_STEERING_SPEED, 80, 140, 255, 120); // Default is 120
+  int maxSteeringSpeed = readSignalValue(RC_STEERING_SPEED, 100, 140, 140, 120); // Default is 120
   int steer = readSignalValue(RC_STEER, -255, 255, maxSteeringSpeed, 9999); // 170 = ~12V
   if (abs(steer) <= 20) steer = 0;
-
-  // Read throttle
-  int throttleTarget  = readSignalValue(RC_THROTTLE, -255, 255, 255, 9999);
-  if (throttleTarget < -120) throttleTarget = -120;
-
-  // Engine switches (default true = on)
-  bool engine1Enabled = readSwitchValue(RC_ENG1_SWITCH, true);
-  bool engine2Enabled = readSwitchValue(RC_ENG2_SWITCH, true);
 
   // Max speed via potentiometer or switch (channel 4)
   int maxSpeed = readSignalValue(RC_MAX_SPEED, 50, 255, 255, 150); // 170 = ~12V
   int hardMaxSpeed = readSignalValue(RC_HARD_MAX_SPEED, 50, 255, 255, 255); // Additional limit of max speed via knob (hard limit).
   maxSpeed = constrain(maxSpeed, -hardMaxSpeed, hardMaxSpeed);
-  throttleTarget = constrain(throttleTarget, -maxSpeed, maxSpeed);
+
+  // Read throttle
+  int throttleTarget = readSignalValue(RC_THROTTLE, -maxSpeed, maxSpeed, maxSpeed, 9999);
+  if (throttleTarget < -120) throttleTarget = -120;
+
+  //throttleTarget = constrain(throttleTarget, -maxSpeed, maxSpeed);
+
+  // Engine switches (default true = on)
+  bool engine1Enabled = readSwitchValue(RC_ENG1_SWITCH, true);
+  bool engine2Enabled = readSwitchValue(RC_ENG2_SWITCH, true);
 
   // Extra function - for now, cut ramp up time in half
   bool extraFunction = readSwitchValue(RC_EXTRA, false);
@@ -244,13 +247,15 @@ void loop() {
   }
 
   // Use switch function for the relay to toggle the lights on/off for the extra channel
-  bool lightsOn = readSwitchValue(RC_EXTRA);
+  //bool lightsOn = readSwitchValue(RC_EXTRA);
 
   // Debugging output
   Serial.print("Steering: "); Serial.print(steer);
+  Serial.print("  MaxSteeringSpeed: "); Serial.print(maxSteeringSpeed);
   Serial.print("  Throttle: "); Serial.print(currentThrottle);
   Serial.print("  MaxSpeed: "); Serial.print(maxSpeed);
-  Serial.print("  lightsOn: "); Serial.print(lightsOn ? "ON" : "OFF");
+  Serial.print("  HardMaxSpeed: "); Serial.print(hardMaxSpeed);
+  Serial.print("  ExtraFunction: "); Serial.print(extraFunction ? "ON" : "OFF");
   Serial.print("  Eng1: "); Serial.print(engine1Enabled ? "ON" : "OFF");
   Serial.print("  Eng2: "); Serial.print(engine2Enabled ? "ON" : "OFF");
   Serial.println("");
