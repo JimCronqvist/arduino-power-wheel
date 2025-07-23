@@ -128,6 +128,12 @@ void loop() {
   // Read steering and set a slightly bigger dead zone than default
   int maxSteeringSpeed = readSignalValue(RC_STEERING_SPEED, 100, 140, 140, 120); // Default is 120
   int steer = readSignalValue(RC_STEER, -255, 255, maxSteeringSpeed, 9999); // 170 = ~12V
+  
+  // Reduce steering speed proportionally to throttle speed (max 20 at full throttle)
+  float steeringReduction = (abs(currentThrottle) / 255.0) * 20.0;
+  steer = (steer > 0) ? max(0, steer - steeringReduction) : min(0, steer + steeringReduction);
+
+  // Steering deadzone should be slightly bigger than the default
   if (abs(steer) <= 20) steer = 0;
 
   // Max speed via potentiometer or switch (channel 4)
